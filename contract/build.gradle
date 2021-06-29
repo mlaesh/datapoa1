@@ -1,0 +1,4 @@
+dependencies {
+    implementation project(':busbaseproject')
+    implementation project(':taxibaseproject')
+}

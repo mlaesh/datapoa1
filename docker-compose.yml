@@ -1,0 +1,31 @@
+version: '3'
+services:
+  db:
+    image: mysql
+    #command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - '3306:3306'
+    environment:
+      #- MYSQL_ROOT_HOST=%
+      - MYSQL_DATABASE=datapoa
+      #- MYSQL_USER=root
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+   # volumes:
+   #   - ./docker/volume_mysql:/var/lib/mysql
+    restart: always
+    healthcheck:
+      test:  mysql --user=root
+  poa-api:
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    ports:
+      - '8080:8080'
+      - '5005:5005'
+    environment:
+      - ADDITIONAL_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005 -Xmx1G -Xms128m -XX:MaxMetaspaceSize=128m
+      - PROFILE=dev
+    depends_on:
+      - "db"
+#    links:
+#     - db
