@@ -1,5 +1,9 @@
 package br.com.poaapi.busbaseproject.facade;
 
+import br.com.poaapi.busbaseproject.exception.BusLineNotFoundException;
+import br.com.poaapi.busbaseproject.exception.MyApiException;
+import br.com.poaapi.busbaseproject.exception.customize.MyException;
+import br.com.poaapi.busbaseproject.exception.error.MyError;
 import br.com.poaapi.busbaseproject.integration.BusLineIntegration;
 import br.com.poaapi.busbaseproject.models.BusLine;
 import br.com.poaapi.busbaseproject.service.BusLineService;
@@ -14,9 +18,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.stereotype.Service;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Semaphore;
 
 @Service
@@ -34,7 +41,12 @@ public class BusLineFacade {
     }
 
     public BusLine findById(Integer id){
-        return service.findById(id);
+        Optional<BusLine> line = service.findById(id);
+        if (line.isEmpty()){
+            throw notFound("No line with id " +id, "Not registered id",
+                    "Verify before requesting", "Verify the provided id and try again");
+        }
+        return line.get();
     }
 
     public Page<BusLine> findAll(Pageable pageable){
@@ -42,29 +54,59 @@ public class BusLineFacade {
     }
 
     public BusLine saveItem(BusLine busLine){
-        if(service.findById(busLine.getId()) == null){
+        if(service.findById(busLine.getId()).isEmpty()){
             return service.saveItem(busLine);
         } else {
-            throw new ResponseStatusException(HttpStatus.NOT_MODIFIED);
+            throw new MyApiException(MyError.builder()
+                    .status(HttpStatus.METHOD_NOT_ALLOWED.value())
+                    .name(HttpStatus.METHOD_NOT_ALLOWED.name())
+                    .message("Try to use PUT method")
+                    .exceptionList(new MyException(new HttpRequestMethodNotSupportedException("Use PUT method")))
+                    .appAction("Redirect endpoint")
+                    .userAction("Contact us")
+                    .build());
         }
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void saveAll(){
-        List<BusLine> all = integration.allLines(restTemplateBuilder.build(), objectMapper);
+        List<BusLine> all = BusLineIntegration.allLines(restTemplateBuilder.build(), objectMapper);
         service.saveAll(all, integration, new ThreadNotification(), new Semaphore(2));
     }
 
     public void delete(Integer id){
-        BusLine del = service.findById(id);
-        if(!service.delete(del)){
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+        Optional<BusLine> del = service.findById(id);
+        if(del.isEmpty()){
+            throw invalidData("No line with id " + id, "Invalid id","Verify provided data", "Verify id and try again");
         }
+        del.ifPresent(service::delete);
     }
 
     public BusLine update(BusLine busLine){
         BusLine up = service.toUpdate(busLine, findById(busLine.getId()));
         return service.saveItem(up);
+    }
+
+    private MyApiException notFound(String exceptionMessage, String errorMessage, String appAction, String userAction) {
+        return new MyApiException(MyError.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .message(exceptionMessage)
+                .name(HttpStatus.NOT_FOUND.name())
+                .exceptionList(new MyException(new BusLineNotFoundException(errorMessage)))
+                .appAction(appAction)
+                .userAction(userAction)
+                .build());
+    }
+
+    private MyApiException invalidData(String exceptionMessage, String errorMessage, String appAction, String userAction) {
+        return new MyApiException(MyError.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .message(exceptionMessage)
+                .name(HttpStatus.BAD_REQUEST.name())
+                .exceptionList(new MyException(new IllegalArgumentException(errorMessage)))
+                .appAction(appAction)
+                .userAction(userAction)
+                .build());
     }
 
 }

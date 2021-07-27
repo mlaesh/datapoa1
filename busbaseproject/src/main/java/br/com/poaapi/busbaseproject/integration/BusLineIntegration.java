@@ -15,11 +15,11 @@ import java.util.*;
 @Service
 public class BusLineIntegration {
 
-    @Value("http://www.poatransporte.com.br/php/facades/process.php")
-    private String uri;
+    @Value("${app.apiURI}")
+    private static String URI;
 
     public List<BusLine> allLines(RestTemplate restTemplate, ObjectMapper objectMapper) {
-        String lines = restTemplate.getForObject(uri + "?a=nc&p=%&t=o", String.class);
+        String lines = restTemplate.getForObject(URI + "?a=nc&p=%&t=o", String.class);
         try{
             return Arrays.asList(objectMapper.readValue(lines, BusLine[].class));
         } catch (IOException e){
@@ -37,7 +37,7 @@ public class BusLineIntegration {
 
     private Map<Integer, Coordinates> getListOfCoordinates(Integer id, RestTemplate restTemplate) throws JsonProcessingException {
         String convert = readJustNameLine(Objects.requireNonNull(restTemplate
-                .getForObject(uri + "?a=il&p=" + id, String.class)));
+                .getForObject(URI + "?a=il&p=" + id, String.class)));
         return new ObjectMapper().readValue(convert, new TypeReference<>() {
         });
     }

@@ -1,46 +1,69 @@
 package br.com.poaapi.taxibaseproject.service;
 
+import br.com.poaapi.taxibaseproject.integration.TaxiIntegration;
 import br.com.poaapi.taxibaseproject.model.Taxi;
-import br.com.poaapi.taxibaseproject.repository.TaxiRepositoryImpl;
+import br.com.poaapi.taxibaseproject.repository.TaxiRepository;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.support.JdbcDaoSupport;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.PostConstruct;
+import javax.sql.DataSource;
 import java.util.List;
+import java.util.Optional;
 
-@Service
+@Service @Slf4j
 @AllArgsConstructor
-public class TaxiService {
+public class TaxiService extends JdbcDaoSupport {
 
-    private TaxiRepositoryImpl taxiRepository;
+    private final TaxiRepository repository;
 
-    public List<Taxi> findAll(){
-        return taxiRepository.findAll();
+    @Autowired
+    private final DataSource dataSource;
+
+    @PostConstruct
+    private void initialize(){
+        this.setDataSource(dataSource);
+        TaxiIntegration.readFile().forEach(this::saveItem);
     }
 
-    public Taxi findById(Integer id){
-        return taxiRepository.findById(id);
+    public List<Taxi> findAll(){
+        return repository.findAll();
+    }
+
+    public Optional<Taxi> findById(Integer id){
+        return repository.findById(id);
     }
 
     public List<Taxi> filterByName(String name){
-        return taxiRepository.filterByName(name.toUpperCase());
+        return repository.filterByName(name.toUpperCase());
     }
 
-    public boolean delete(Taxi taxi) {
-        try {
-            taxiRepository.delete(taxi);
-        } catch (IllegalArgumentException e) {
-            return false;
+    public void delete(Taxi taxi) {
+        repository.delete(taxi);
+    }
+
+    public Taxi toUpdate(Taxi taxiToUp, Taxi taxi){
+        if(taxiToUp.getName() != null){
+            taxi.setName(taxiToUp.getName().toUpperCase());
         }
-        return true;
-    }
+        if(taxiToUp.getLat() != null){
+            taxi.setLat(taxiToUp.getLat());
+        }
+        if(taxiToUp.getLng() != null){
+            taxi.setLng(taxiToUp.getLng());
+        }
+        taxi.setTime(taxiToUp.getTime());
+        TaxiIntegration.appendFile(taxi);
 
-    public Taxi update(Taxi taxi, String[] params){
-        taxiRepository.update(taxi, params);
         return taxi;
     }
 
-    public Taxi save(Taxi taxi){
-        return taxiRepository.save(taxi);
+    public Taxi saveItem(Taxi taxi){
+        TaxiIntegration.appendFile(taxi);
+        return repository.save(taxi);
     }
 
 }
